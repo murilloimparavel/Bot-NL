@@ -65,7 +65,7 @@ function delay(t, v) {
 
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: 'bot-MFA' }),
-  puppeteer: { headless: false,
+  puppeteer: { headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -162,7 +162,6 @@ const listenMessage = () => client.on('message', async msg => {
   }
 
   const status = fs.readFileSync("./bot/" + from + "/bot.json","utf8").split(':')[1].replace(/\W/g, '');
-  const statusCNPJ = fs.readFileSync("./cnpj/" + from + "/cnpj.json","utf8").split(':')[1].replace(/\W/g, '');
   const statusChat = fs.readFileSync("./chat/" + from + "/chat.json","utf8").split(':')[1].replace(/\W/g, '');
   
   await readWriteMsgToJson("off");
