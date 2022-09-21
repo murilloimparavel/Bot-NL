@@ -46,8 +46,8 @@ const checkIsUrl = (path) => {
 const generateImage = (base64, cb = () => {}) => {
     let qr_svg = qr.image(base64, { type: 'svg', margin: 4 });
     qr_svg.pipe(require('fs').createWriteStream('./mediaSend/qr-code.svg'));
-    console.log(`⚡ Recuerda que el QR se actualiza cada minuto ⚡'`);
-    console.log(`⚡ Actualiza F5 el navegador para mantener el mejor QR⚡`);
+    console.log(`⚡ Lembre-se que o QR é atualizado a cada minuto⚡'`);
+    console.log(`⚡ Atualize o navegador (F5) para manter o melhor QR ⚡`);
     cb()
 }
 
@@ -55,7 +55,7 @@ const checkEnvFile = () => {
     const pathEnv = `${__dirname}/../.env`;
     const isExist = fs.existsSync(pathEnv);
     if(!isExist){
-        console.log(`🆗 ATENCION! 🆗 te falta crear tu archivo .env de lo contrario no funcionara`)
+        console.log(`🆗 ATENÇÃO! 🆗 você precisa criar seu arquivo .env caso contrário não funcionará`)
     }
 }
 
@@ -64,11 +64,12 @@ const checkEnvFile = () => {
  * @param {*} session 
  * @param {*} cb 
  */
+
 const createClient =  () => {
     client = new Client({
         authStrategy: new LocalAuth(
             {dataPath: './sessions/',
-            clientId: 'bot'}),
+            clientId: 'bot-MFA'}),
         puppeteer: { headless: false }
  
     });

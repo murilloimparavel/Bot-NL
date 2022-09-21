@@ -6,8 +6,9 @@ const qrcode = require('qrcode') && require('qrcode-terminal');
 const http = require('http');
 const fileUpload = require('express-fileupload');
 const { generateImage, cleanNumber, checkEnvFile, createClient, isValidNumber } = require('./controllers/handle')
+const { connectionReady, connectionLost } = require('./controllers/connection')
 const axios = require('axios');
-const port = 3000;
+const port = 4000;
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
@@ -22,7 +23,6 @@ const tempoBot = 3600000
 const tempoChat = 1800000
 const tempoMessageTo = 600000
 const dirBot = './bot'
-const dirCNPJ = './cnpj'
 const dirChat = './chat'
 const dirMsgTo = './msgto'
 
@@ -48,10 +48,6 @@ if (!fs.existsSync(dirBot)){
     fs.mkdirSync(dirBot)
 }
 
-if (!fs.existsSync(dirCNPJ)){
-  fs.mkdirSync(dirCNPJ)
-}
-
 if (!fs.existsSync(dirChat)){
   fs.mkdirSync(dirChat)
 }
@@ -65,25 +61,11 @@ function delay(t, v) {
       setTimeout(resolve.bind(null, v), t)
   });
 }
-
-app.use(express.json());
-app.use(express.urlencoded({
-extended: true
-}));
-app.use(fileUpload({
-debug: true
-}));
-app.use("/", express.static(__dirname + "/"))
-
-app.get('/', (req, res) => {
-  res.sendFile('index.html', {
-    root: __dirname
-  });
-});
+;
 
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: 'bot-MFA' }),
-  puppeteer: { headless: true,
+  puppeteer: { headless: false,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -95,64 +77,6 @@ const client = new Client({
       '--disable-gpu'
     ] }
 });
-
-client.initialize();
-
-io.on('connection', function(socket) {
-  socket.emit('message', ' Iniciado');
-  socket.emit('qr', './icon.svg');
-
-
-client.on('qr', (qr) => {
-    qrcode.generate(qr, { small: true });
-
-    console.log('QR RECEIVED');
-    qrcode.toDataURL(qr, (err, url) => {
-      socket.emit('qr', url);
-      socket.emit('message', '© BOT-MFA QRCode recebido, aponte a câmera  seu celular!');
-    });
-});
-
-/*
-client.on('qr', (qr) => {
-    console.log('QR RECEIVED', qr);
-    qrcode.toDataURL(qr, (err, url) => {
-      socket.emit('qr', url);
-      socket.emit('message', '© BOT-ZDG QRCode recebido, aponte a câmera  seu celular!');
-    });
-});
-*/
-
-client.on('ready', () => {
-    socket.emit('ready', '© BOT-MFA Dispositivo pronto!');
-    socket.emit('message', '© BOT-MFA Dispositivo pronto!');
-    socket.emit('qr', './check.svg')	
-    console.log('© BOT-MFA Dispositivo pronto');
-});
-
-client.on('authenticated', () => {
-    socket.emit('authenticated', '© BOT-MFA Autenticado!');
-    socket.emit('message', '© BOT-MFA Autenticado!');
-    console.log('© BOT-MFA Autenticado');
-});
-
-client.on('auth_failure', function() {
-    socket.emit('message', '© BOT-MFA Falha na autenticação, reiniciando...');
-    console.error('© BOT-MFA Falha na autenticação');
-});
-
-client.on('change_state', state => {
-  console.log('© BOT-MFA Status de conexão: ', state );
-});
-
-client.on('disconnected', (reason) => {
-  socket.emit('message', '© BOT-MFA Cliente desconectado!');
-  console.log('© BOT-MFA Cliente desconectado', reason);
-  client.initialize();
-});
-
-});
-
 
 client.on('message_create', async message => {
   
@@ -181,11 +105,10 @@ client.on('message_create', async message => {
 
 });
 
-client.on('message', async msg => {
+const listenMessage = () => client.on('message', async msg => {
   const { body, hasMedia, type, ack } = msg;
   const jid = msg.from
   const dirFrom = './bot/' + jid.replace(/\D/g,'');
-  const dirCNPJ = './cnpj/' + jid.replace(/\D/g,'');
   const dirChat = './chat/' + jid.replace(/\D/g,'');
   const dirMsgTo = './msgto/' + jid.replace(/\D/g,'');
   const from = jid.replace(/\D/g,'');
@@ -220,22 +143,6 @@ client.on('message', async msg => {
   if (!fs.existsSync(dirFrom)){
       fs.mkdirSync(dirFrom);
       await readWriteFileJson("on");
-  }
-  
-  async function readWriteJsonCNPJ(cnpj) {
-      let dataFile = [];
-      fs.writeFileSync("./cnpj/" + from + "/cnpj.json", JSON.stringify(dataFile));
-      var data = fs.readFileSync("./cnpj/" + from + "/cnpj.json");
-      var myObject = JSON.parse(data);
-      let newData = {
-        status: cnpj,
-      };
-      await myObject.push(newData);
-      fs.writeFileSync("./cnpj/" + from + "/cnpj.json", JSON.stringify(myObject));
-  }  
-  if (!fs.existsSync(dirCNPJ)){
-      fs.mkdirSync(dirCNPJ);
-      await readWriteJsonCNPJ("off");
   }
   
   async function readWriteChatJson(chatStatus) {
@@ -373,8 +280,33 @@ client.on('message', async msg => {
 
 });
     
+
+client.on('qr', qr => generateImage(qr, () => {
+  qrcode.generate(qr, { small: true });
+  
+  console.log(`Ver QR http://localhost:${port}/qr`)
+  socketEvents.sendQR(qr)
+}))
+
+client.on('ready', (a) => {
+  connectionReady()
+  listenMessage()
+  // socketEvents.sendStatus(client)
+});
+
+client.on('auth_failure', (e) => {
+  // console.log(e)
+  connectionLost()
+});
+
+client.on('authenticated', () => {
+  console.log('WhatsApp AUTENTICADO'); 
+});
+
+client.initialize();
+
 server.listen(port, function() {
-        console.log('App running on *: ' + port);
+        console.log('Aplicação está rodando na porta: ' + port);
 });
 
  
